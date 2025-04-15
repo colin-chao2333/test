@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>物理课堂小游戏</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        html, body { margin: 0; padding: 0; font-family: "微软雅黑", Arial, sans-serif; background: #19284c; color: #fff;}
+        body { min-height: 100vh; display: flex; flex-direction: column;}
+        header { background: #2454a6; text-align: center; padding: 12px 0;}
+        .container { flex: 1; width: 96%; max-width: 700px; margin: 20px auto 8px auto; border-radius: 8px; background: #233463; box-shadow: 0 2px 10px rgba(3,10,50,0.06); padding: 20px;}
+        .game-section { margin-top: 14px; min-height: 250px;}
+        .question-block { background: #293c67; border-radius: 7px; margin-bottom: 20px; padding: 18px 12px 12px 12px;}
+        .question-title { font-weight: bold; font-size: 1.02em;}
+        .option-list { margin: 12px 0 0 0; padding: 0; list-style: none;}
+        .option { background: #234dad; color: #fff; padding: 8px 12px; margin: 8px 0; border-radius: 6px; cursor: pointer; transition: background .2s;}
+        .option.selected { border: 2px solid #3da9fc; background: #3da9fc3e;}
+        .option.correct { background: #36c24d; color: #fff;}
+        .option.incorrect { background: #e84444; color: #fff;}
+        .animation-right { animation: bounceRight .3s 1;}
+        .animation-wrong { animation: shakeWrong .4s 1;}
+        @keyframes bounceRight { 15% {transform: scale(1.08);} 80% {transform: scale(0.99);} 100% {transform: scale(1);}}
+        @keyframes shakeWrong { 10% {transform: translateX(-8px);} 30% {transform: translateX(7px);} 50% {transform: translateX(-6px);} 70% {transform: translateX(5px);} 90% {transform: translateX(-4px);} 100% {transform: translateX(0);}}
+        .explanation { margin-top: 11px; font-size: .98em; line-height: 1.58; color: #fff2;}
+        .qsep { margin: 18px 0; border-top: 1px solid #1c2e51;}
+        .result-block { background: #203363; border-radius: 6px; margin: 20px 0 0 0; padding: 17px 11px;}
+        .result-title { font-size: 1.2em; font-weight: bold; color: #3da9fc;}
+        .func-btns { margin-top: 25px; display: flex; flex-wrap: wrap; gap: 0.5em; justify-content: center;}
+        button, .btn { background: #2454a6; color: #fff; border: none; outline: none; border-radius: 5px; font-size: 1em; padding: 9px 20px; margin: .3em; transition: background 0.20s; cursor: pointer;}
+        button:active, .btn:active { background: #3674e2;}
+        .current-point { display: inline-block; color: #3da9fc; font-weight: bold; font-size: 1.04em;}
+        select { background: #223068; color: #fff; border: 1px solid #3da9fc; border-radius: 5px; padding: 7px 11px; font-size: 0.97em; margin-left: 7px;}
+        .custom-modal-bg { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 1002; background: rgba(20,34,68,0.94); align-items: center; justify-content: center;}
+        .custom-modal { background: #fff; color: #222; min-width: 300px; max-width: 96vw; border-radius: 6px; padding: 24px 18px 16px 18px; margin: 0 1.8em; position: relative;}
+        .custom-modal h3 { color: #2454a6;}
+        .custom-modal input, .custom-modal textarea, .custom-modal select { margin: 4px 0 10px 0; font-size: 1em; padding: 7px 10px; border-radius: 5px; border: 1px solid #bbb; width: 90%;}
+        .close-modal { position: absolute; right: 16px; top: 13px; color: #222; background: none; font-size: 1.4em; border: none; cursor: pointer;}
+        .custom-modal .bbar { margin-top: 15px; text-align: right;}
+        @media (max-width:480px){ .container {max-width: 99vw; padding: 7px 4vw;} header {padding: 6px 0; font-size: 1.04em;} .question-block{padding:8px 6px;} .result-block{padding:9px 6px;}}
+    </style>
+</head>
+<body>
+<header>
+    <span>物理课堂小游戏</span>
+</header>
+<div class="container">
+    <div style="margin-bottom: 7px;">
+        <span class="current-point">知识点：</span>
+        <select id="pointSelect"></select>
+        <button id="btnCustom" title="自定义题库">&#9998; 编辑题库</button>
+    </div>
+    <div class="game-section" id="gameSection"></div>
+    <div class="func-btns">
+        <button id="btnReplay" style="display:none;">重玩本知识点</button>
+        <button id="btnSwitch">切换知识点</button>
+        <button id="btnExport" style="display:none;">导出结果</button>
+    </div>
+</div>
+<div class="custom-modal-bg" id="modalBg">
+    <div class="custom-modal" id="customModal">
+        <button class="close-modal" onclick="closeModal()">×</button>
+        <div id="customContent"></div>
+    </div>
+</div>
+<script>
+const defaultData = [
+{ name:"牛顿第一定律", type:"select", questions:[
+  {q:"牛顿第一定律又称为什么定律？",options:["惯性定律","加速度定律","动量定律","质量守恒定律"],answer:0,explanation:"牛顿第一定律又称为惯性定律。"},
+  {q:"牛顿第一定律说明了物体具有什么性质？",options:["受外力就运动","惯性","只有运动时受力","只能静止"],answer:1,explanation:"物体有保持原来运动状态的性质，叫做惯性。"},
+  {q:"下列关于惯性的说法正确的是？",options:["只有运动的物体有惯性","只有静止物体有惯性","所有物体都有惯性","轻物体没有惯性"],answer:2,explanation:"惯性是物体固有的，和物体静止或运动无关。"},
+  {q:"下列实例能说明惯性存在的是？",options:["坐车突然刹车时身体向前倾","小球下坡加速","风吹树叶落下","苹果掉落地上"],answer:0,explanation:"刹车时身体前倾是惯性现象。"},
+  {q:"在光滑水平面上滑行的物体会怎样运动？",options:["保持原来的速度运动","逐渐停止","加速运动","向上运动"],answer:0,explanation:"没有外力情况下，物体会保持匀速直线运动。"}
+]},
+{ name:"力的分解", type:"select", questions:[
+  {q:"已知一个拉力作用在物体上能分解出几个分力？",options:["无限多个","2个","3个","只有1个"],answer:1,explanation:"一个力可以分解为2个分力。"},
+  {q:"力的分解的目的是？",options:["使问题更复杂","方便解决实际问题","不能分解","增加力的大小"],answer:1,explanation:"力的分解常用于分析复杂受力情况。"},
+  {q:"斜面上分解重力时分解成？",options:["平行和垂直斜面的分力","两个等大分力","水平方向两个分力","全部错误"],answer:0,explanation:"斜面题重力分解为平行斜面和垂直斜面。"},
+  {q:"下列不属于力的分解实例的是？",options:["使用天平称重","斜面上物体重力分解","拉树枝分解成水平方向力","拽绳子只沿一个方向"],answer:0,explanation:"天平称重没有涉及力的分解。"},
+  {q:"已知合力与一个分力，分解另一个分力的方法主要利用？",options:["平行四边形法则","合力垂直法","质量大小","没有关系"],answer:0,explanation:"平行四边形法则是分解和合成力常用方法。"}
+]},
+{ name:"欧姆定律", type:"select", questions:[
+  {q:"欧姆定律用表达式表示为？",options:["I=U/R","U=E/Q","P=UI","Q=It"],answer:0,explanation:"欧姆定律I=U/R。"},
+  {q:"电阻一定，电压增大时电流怎样？",options:["增大","减小","不变","变小"],answer:0,explanation:"电压增加，电流随之变大，I=U/R。"},
+  {q:"保持电流不变时，增大电阻会使电压？",options:["增大","减小","不变","消失"],answer:0,explanation:"U=IR，R变大,U变大。"},
+  {q:"欧姆定律成立的条件是？",options:["定值电阻两端","灯泡","所有导体","只能纯银线"],answer:0,explanation:"只有定值电阻等线性导体时欧姆定律严格成立。"},
+  {q:"哪一物理量与电阻成反比？",options:["电流(I)","电压(U)","功率(P)","时间(t)"],answer:0,explanation:"电流与电阻成反比。"}
+]},
+{ name:"能量守恒", type:"select", questions:[
+  {q:"能量守恒定律的内容是？",options:["能量不会凭空产生和消失","能量可变多","能量个别变化","能量大小随意"],answer:0,explanation:"能量守恒定律：能量既不会凭空产生，也不会凭空消失，只能彼此转化。"},
+  {q:"打滑的汽车动能最终以什么形式消失？",options:["热能","光能","电能","声能"],answer:0,explanation:"摩擦生热，动能转化为热能。"},
+  {q:"做功的过程反映了？",options:["能转化","能消失","能冒出来","质量减少"],answer:0,explanation:"做功体现能量从一种形式向另一种转化。"},
+  {q:"下列属于能量守恒现象的是？",options:["摆的运动能变成热能","汽车运动能变光能","能消失","质量不守恒"],answer:0,explanation:"能之间可转化，能量不灭。"},
+  {q:"能量守恒和能量转化在本质上的关系是？",options:["能之间彼此可转化但总量守恒","互不相关","有转化没守恒","只有守恒"],answer:0,explanation:"能转化时总量守恒。"}
+]},
+{ name:"简单机械", type:"select", questions:[
+  {q:"杠杆的平衡条件是？",options:["动力臂*动力=阻力臂*阻力","只看重量","两力和大即可","作用点越多越好"],answer:0,explanation:"这是杠杆的平衡条件。"},
+  {q:"滑轮的作用是？",options:["改变力的方向","加速物体","增大摩擦","无作用"],answer:0,explanation:"滑轮能改变拉力方向。"},
+  {q:"下列属于省力杠杆的是？",options:["开瓶器","筷子","钓鱼竿","剪刀"],answer:0,explanation:"省力杠杆典型例子为开瓶器。"},
+  {q:"使用斜面时斜面越长，需要的力？",options:["越小","越大","不变","无影响"],answer:0,explanation:"斜面越长越省力。"},
+  {q:"滑轮组和杠杆的共同省力原理是？",options:["都可以通过增大力臂来省力","滑轮组不用受力","都费力","都有两个受力点"],answer:0,explanation:"都可通过增大力臂来获得省力效果。"}
+]},
+{ name:"光的反射", type:"select", questions:[
+  {q:"光的反射定律的内容是？",options:["反射角等于入射角","反射角大于入射角","入射角等于45度","入射光线总垂直反射面"],answer:0,explanation:"光的反射定律核心是反射角=入射角。"},
+  {q:"下列现象属于光的反射的是？",options:["镜子成像","玻璃弯曲","水面折光","白色棉花"],answer:0,explanation:"镜子成像属于反射。"},
+  {q:"反射光线在哪个面？",options:["法线面内","任意面","垂直镜面","不确定"],answer:0,explanation:"入射光、反射光、法线三线共面。"},
+  {q:"汽车开近光灯能避免炫目是因为？",options:["采用漫反射减少直射","镜面反射太亮","灯泡大","距离近"],answer:0,explanation:"漫反射较柔和，镜面反射易炫目。"},
+  {q:"入射角为30°时反射角为？",options:["30°","60°","0°","15°"],answer:0,explanation:"反射等于入射角为30°。"}
+]},
+{ name:"热传导", type:"select", questions:[
+  {q:"金属锅盖在加热时容易烫手原因是？",options:["金属导热性好","表面粗糙","密度大","硬度高"],answer:0,explanation:"金属导热快。"},
+  {q:"下列属于良好绝热材料的是？",options:["泡沫塑料","铝","铁块","大理石"],answer:0,explanation:"泡沫塑料导热性差，为绝热材料。"},
+  {q:"火焰靠近手时会觉得热，属于哪种传热方式？",options:["辐射","传导","对流","扩散"],answer:0,explanation:"没有接触属于热的辐射。"},
+  {q:"海风和陆风产生的主要原因是？",options:["热的对流","热的传导","热的辐射","日照角度"],answer:0,explanation:"海风、陆风本质是空气对流。"},
+  {q:"煮饭用隔水蒸法主要利用了哪种传热？",options:["对流","传导","辐射","扩散"],answer:0,explanation:"水蒸气流动，是对流。"}
+]},
+{ name:"电磁感应", type:"select", questions:[
+  {q:"法拉第电磁感应定律说明什么？",options:["磁场变化能产生电流","电流变大","电路不变","力学定律"],answer:0,explanation:"电磁感应：磁通量变化产生感应电流。"},
+  {q:"保持磁铁不动，导体运动可否产生电流？",options:["能","不能","看方向","随时间"],answer:0,explanation:"磁通量变化或运动均能产生感应电流。"},
+  {q:"将磁铁插入线圈内会怎样？",options:["线圈出现感应电流","不变","灯泡变暗","无影响"],answer:0,explanation:"磁通量变化有感应电流。"},
+  {q:"交流发电机产生交流电主要利用？",options:["电磁感应","电阻发热","电流分流","静电反应"],answer:0,explanation:"发电机原理是电磁感应。"},
+  {q:"下列仪器不能利用电磁感应的是？",options:["干电池","交流发电机","变压器","麦克风"],answer:0,explanation:"干电池不是通过电磁感应发电。"}
+]},
+{ name:"波的性质", type:"select", questions:[
+  {q:"声音不能在何种环境中传播？",options:["真空","空气","固体","水"],answer:0,explanation:"声音传播必须有介质。" },
+  {q:"下列不是机械波的性质是？",options:["能在真空传播","反射","折射","干涉"],answer:0,explanation:"机械波不能在真空中传播。"},
+  {q:"水面波的传播速度取决于？",options:["介质性质","波的频率","初始能量","水深"],answer:0,explanation:"主要由介质性质决定。"},
+  {q:"回音的产生说明波具有什么性质？",options:["反射","衍射","干涉","吸收"],answer:0,explanation:"回声是反射现象。"},
+  {q:"声波的衍射特性与什么有关？",options:["波长","受力","声音大小","光照"],answer:0,explanation:"波长越长衍射效果越明显。"}
+]},
+{ name:"浮力", type:"select", questions:[
+  {q:"浮力的产生原因是？",options:["液体对物体向上的压力差","重力小","静电作用","摩擦力"],answer:0,explanation:"浮力源自上下液体压强差。"},
+  {q:"阿基米德原理的内容是？",options:["浮力等于排开液体的重","浮力大于重力","浮力等于物体体积","浮力与表面积成正比"],answer:0,explanation:"浮力=排开液体重。"},
+  {q:"体积相等但密度不同的物体，浸没在同液体中，浮力如何？",options:["相等","密度小的浮力大","密度大的浮力大","和重量成正比"],answer:0,explanation:"浮力只由体积和液体决定。"},
+  {q:"下列现象说明有浮力存在的是？",options:["轮船浮在水面上","小球自由落体","木块受摩擦力","物体在地上静止"],answer:0,explanation:"轮船有浮力浮在水上。"},
+  {q:"沉在液体底部的物体的浮力为？",options:["等于排开液体的重","等于物体重量","没有浮力","等于零"],answer:0,explanation:"不管位置，总有浮力，其值=排开液体重。"}
+]},
+{ name:"压强", type:"select", questions:[
+  {q:"下列不能增大液体压强的方法是？",options:["减少液体的深度","增大液体密度","增大深度","加重液体"],answer:0,explanation:"增加深度、密度能增压强。"},
+  {q:"液体压强计算公式为？",options:["P=hρg","P=F/S","P=mg/S","P=Fa/S"],answer:0,explanation:"P=hρg（高度、密度重力加速度）。"},
+  {q:"同一液体中深度不同，压强如何？",options:["越深压强越大","压强不变","越深越小","只和面积有关"],answer:0,explanation:"随着深度增加压强增大。"},
+  {q:"液体压强的单位是？",options:["帕（Pa）","牛顿（N）","瓦特（W）","焦耳（J）"],answer:0,explanation:"压强单位是帕。"},
+  {q:"水下10米压强比水下5米？",options:["大2倍","大1倍","小一半","相等"],answer:0,explanation:"P与h成正比，深度翻倍压强也翻倍。"}
+]},
+{ name:"动量守恒", type:"select", questions:[
+  {q:"动量守恒定律适用于？",options:["无外力系统","有摩擦的系统","非封闭系统","气体分子"],answer:0,explanation:"只有无外力时动量才守恒。"},
+  {q:"下列哪一项不是动量守恒现象？",options:["两车相撞后总动量保持不变","球弹回后速度变小","火箭喷气上升","物体自由落下"],answer:3,explanation:"落体受外力，不属于动量守恒。"},
+  {q:"物体动量等于？",options:["质量×速度","力×时间","动能×2","功/时间"],answer:0,explanation:"动量p=mv。"},
+  {q:"动量的单位是？",options:["kg·m/s","牛顿","瓦特","焦耳"],answer:0,explanation:"动量单位是kg·m/s。"},
+  {q:"动量不守恒的条件是？",options:["有外力作用","只有微粒","系统很小","能量转化"],answer:0,explanation:"有外力时动量不守恒。"}
+]},
+{ name:"电功率", type:"select", questions:[
+  {q:"电功率的单位是？",options:["瓦特（W）","安培（A）","千克（kg）","帕（Pa）"],answer:0,explanation:"电功率的单位是瓦特。"},
+  {q:"1kW·h等于多少焦耳？",options:["3.6x10^6J","3600J","3.6x10^5J","3.6x10^3J"],answer:0,explanation:"1kW·h=1000W×3600s=3.6x10^6J。"},
+  {q:"电功率公式为？",options:["P=UI","P=IR","P=U^2/R","P=I^2R"],answer:0,explanation:"P=UI为基本公式。"},
+  {q:"家庭电路中通常标称的用电器功率单位为？",options:["瓦特（W）","牛顿（N）","焦耳（J）","安培（A）"],answer:0,explanation:"常用W作单位。"},
+  {q:"功率一定时，电流增大，则电压？",options:["减小","增大","保持不变","无法确定"],answer:0,explanation:"P=UI，I变大U变小。"}
+]},
+{ name:"平抛运动", type:"select", questions:[
+  {q:"平抛运动轨迹是什么？",options:["抛物线","直线","圆形","椭圆"],answer:0,explanation:"平抛轨迹始终为抛物线。"},
+  {q:"平抛运动过程中水平方向速度如何？",options:["保持不变","变大","变小","为零"],answer:0,explanation:"水平方向无外力速度不变。"},
+  {q:"影响平抛时间的主要因素是？",options:["高度","初速度","质量","空气阻力"],answer:0,explanation:"只受高度影响。"},
+  {q:"平抛落地瞬间速度是？",options:["斜向下","竖直向下","竖直向上","水平向右"],answer:0,explanation:"速度矢量为斜向下。"},
+  {q:"水平方向加速度大小为？",options:["0","g","g/2","不确定"],answer:0,explanation:"水平方向无加速度。"}
+]},
+{ name:"能的转化", type:"select", questions:[
+  {q:"电能可直接转化为机械能的设备有？",options:["电动机","电灯泡","电热器","电阻丝"],answer:0,explanation:"电动机可直接把电能变为机械能。"},
+  {q:"太阳能热水器利用了能量的哪种转化？",options:["光能转热能","机械能转光能","动能转热能","声能转电能"],answer:0,explanation:"太阳能转化为热能。"},
+  {q:"发电机是将什么转化为电能？",options:["机械能","热能","光能","声能"],answer:0,explanation:"机械能变为电能。"},
+  {q:"下列属于能量转化的现象是？",options:["苹果落地","手机发光","杯子静止","弹簧形变"],answer:1,explanation:"手机发光是电能转光能。"},
+  {q:"光伏发电的能量转化为？",options:["光能转电能","热能转电能","电能转光能","机械能转热能"],answer:0,explanation:"由太阳光直接转为电能。"}
+]},
+{ name:"磁场", type:"select", questions:[
+  {q:"通电导线周围存在？",options:["磁场","电场","重力场","光场"],answer:0,explanation:"奥斯特实验发现通电导线周围有磁场。"},
+  {q:"磁场的方向由什么决定？",options:["小磁针指向","电流方向","物体位移","温度"],answer:0,explanation:"小磁针南北极指向磁场方向。"},
+  {q:"地球的地磁北极在地理？",options:["南极附近","北极附近","赤道附近","任意地方"],answer:0,explanation:"地磁北极在地理南极附近。"},
+  {q:"磁力线从哪里出发？",options:["N极","S极","中心","两端"],answer:0,explanation:"磁力线从N极出发。"},
+  {q:"磁感线的分布特点是？",options:["不相交","互相相交","无规律","互相平行"],answer:0,explanation:"磁感线不相交。"}
+]},
+{ name:"固体的热胀冷缩", type:"select", questions:[
+  {q:"金属加热会怎样？",options:["膨胀变长","收缩变短","变硬","变轻"],answer:0,explanation:"加热分子距离变大，金属变长。"},
+  {q:"桥梁接缝主要防止？",options:["热胀冷缩损坏","积水","车辆滑倒","噪音"],answer:0,explanation:"留缝隙防止膨胀损坏。"},
+  {q:"下列热胀冷缩现象正确的是？",options:["铝热胀大于铁","水热胀冷缩最明显","玻璃没有热胀冷缩","塑料不收缩"],answer:0,explanation:"不同物体热胀冷缩本领不同。"},
+  {q:"固体随温度上升？",options:["体积增加","体积减少","密度增加","重量变小"],answer:0,explanation:"体积会膨胀增加。"},
+  {q:"温度降低时固体如何？",options:["收缩变短","体积膨胀","体积不变","分子量变大"],answer:0,explanation:"冷缩变短。"}
+]},
+{ name:"摩擦力", type:"select", questions:[
+  {q:"摩擦力的方向总是？",options:["与运动方向相反","与运动方向相同","和重力方向一致","与法线一致"],answer:0,explanation:"摩擦力总是阻碍物体相对运动。"},
+  {q:"降低摩擦的方法有？",options:["涂润滑油","增大压力","使表面粗糙","增加接触面积"],answer:0,explanation:"润滑油可降低摩擦。"},
+  {q:"增大摩擦的方法有？",options:["糙化表面","打蜡","减少压力","涂抹润滑剂"],answer:0,explanation:"表面越糙摩擦越大。"},
+  {q:"摩擦力大小与什么因素有关？",options:["接触面的粗糙程度","颜色","材质颜色","体积"],answer:0,explanation:"粗糙面摩擦力大。"},
+  {q:"物体停止运动后摩擦力？",options:["等于其它力的分力","小于重力","大于作用力","消失"],answer:0,explanation:"静止时摩擦力和其它力分力平衡。"}
+]},
+{ name:"受力分析", type:"select", questions:[
+  {q:"物体受平衡力作用时，状态会？",options:["匀速直线运动或静止","加速运动","减速运动","随意变化"],answer:0,explanation:"合力为零，速度不变。"},
+  {q:"受力分析最基本的依据是？",options:["牛顿第二定律","能量守恒","杠杆原理","阿基米德原理"],answer:0,explanation:"牛顿第二定律是受力分析基础。"},
+  {q:"受力分析必须画出？",options:["受力图","合力图","运动轨迹","能量图"],answer:0,explanation:"画受力图是受力分析第一步。"},
+  {q:"下面哪个不是通常的力？",options:["惯性力","重力","弹力","摩擦力"],answer:0,explanation:"惯性力是虚拟力，不是实际的力。"},
+  {q:"物体同时受多个力作用时，应先？",options:["合成力","分解力","分解运动","求速度"],answer:0,explanation:"受众力作用合成力求结果。"}
+]}
+];
+
+// 题库存储逻辑
+function loadBank(){
+    let data = localStorage.getItem('physics_banks');
+    if(data){
+        try{ return JSON.parse(data); }catch(e){ }
+    }
+    return JSON.parse(JSON.stringify(defaultData));
+}
+function saveBank(bank) {
+    localStorage.setItem('physics_banks', JSON.stringify(bank));
+}
+
+// 全局
+let currentBank = loadBank();
+let currentPointIdx = 0;
+let currentSelected = null;
+let currentQuestions = [];
+let userAnswers = [];
+let isShowingResult = false;
+
+const $select = document.getElementById('pointSelect');
+const $section = document.getElementById('gameSection');
+const $btnReplay = document.getElementById('btnReplay');
+const $btnSwitch = document.getElementById('btnSwitch');
+const $btnExport = document.getElementById('btnExport');
+const $btnCustom = document.getElementById('btnCustom');
+const $modalBg = document.getElementById('modalBg');
+const $customContent = document.getElementById('customContent');
+
+function init() {
+    $select.innerHTML = "";
+    for(let i=0;i<currentBank.length;i++){
+        let opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = currentBank[i].name;
+        $select.appendChild(opt);
+    }
+    $select.value = currentPointIdx;
+    $select.onchange = ()=>{ currentPointIdx=parseInt($select.value); startGame(); };
+    $btnSwitch.onclick = ()=>{ $select.focus(); $select.size=$select.options.length; setTimeout(()=>{$select.size=1},2000);}
+    $select.onblur = ()=>{$select.size=1;}
+    $btnCustom.onclick = ()=>{ showCustomModal(); };
+    startGame();
+}
+
+function startGame(){
+    currentSelected = currentPointIdx;
+    isShowingResult = false;
+    let point = currentBank[currentSelected];
+    userAnswers = [];
+    $btnReplay.style.display='none';
+    $btnExport.style.display='none';
+    let qs = shuffleArr(point.questions.map((q,i)=>({...q,_idx:i})));
+    let num = Math.min(2, qs.length);
+    currentQuestions = qs.slice(0,num);
+    renderQuestions();
+}
+
+function shuffleArr(arr){
+    return arr.map(a=>({v:a, k:Math.random()})).sort((a,b)=>a.k-b.k).map(o=>o.v);
+}
+
+function renderQuestions(){
+    let html = "";
+    let point = currentBank[currentSelected];
+    html += `<div style="margin-bottom:8px;">当前知识点：<span style="color:#3da9fc;font-weight:bold;">${point.name}</span></div>`;
+    currentQuestions.forEach((q, idx)=>{
+        html += `<div class="question-block" id="qblock${idx}">`;
+        html += `<div class="question-title">${idx+1}、${q.q}</div>`;
+        html += renderSelectOptions(q, idx);
+        if(idx !== currentQuestions.length-1) html += `<div class="qsep"></div>`;
+        html += `</div>`;
+    });
+    $section.innerHTML = html;
+    setTimeout(bindSelectEvents, 10);
+    lockReplay(false);
+}
+function renderSelectOptions(q, idx){
+    let html = `<ul class="option-list">`;
+    for(let i=0;i<q.options.length;i++){
+        html+=`<li class="option" data-idx="${i}" data-q="${idx}">${String.fromCharCode(65+i)}.${q.options[i]}</li>`;
+    }
+    html += "</ul>";
+    return html;
+}
+function bindSelectEvents(){
+    document.querySelectorAll('.option-list').forEach((ul)=>{
+        ul.onclick = function(e){
+            if(isShowingResult) return;
+            let target = e.target;
+            if(!target.classList.contains("option")) return;
+            let sel = parseInt(target.dataset.idx);
+            let qIdx = parseInt(target.dataset.q);
+            doSelectAnswer(qIdx, sel, target);
+        }
+    })
+}
+function doSelectAnswer(qIdx, selIdx, node){
+    let q = currentQuestions[qIdx];
+    if(userAnswers[qIdx]) return;
+    let correct = q.answer===selIdx;
+    userAnswers[qIdx] = {userAns: selIdx, correct, time: Date.now()};
+    document.querySelectorAll(`#qblock${qIdx} .option`).forEach((e,idx)=>{
+        e.classList.remove("selected","correct","incorrect","animation-right","animation-wrong");
+        if(idx===selIdx) e.classList.add("selected",(correct?"correct":"incorrect"), correct?"animation-right":"animation-wrong");
+        if(idx === q.answer && !correct) e.classList.add("correct");
+    });
+    checkComplete();
+}
+function checkComplete(){
+    if(userAnswers.filter(x=>x).length == currentQuestions.length){
+        setTimeout(showResult, 360);
+    }
+}
+function showResult(){
+    isShowingResult = true;
+    $btnReplay.style.display = '';
+    $btnExport.style.display = '';
+    let point = currentBank[currentSelected];
+    let total = currentQuestions.length, corr = userAnswers.filter(u=>u && u.correct).length;
+    let html = `<div class="result-block">`;
+    html += `<div class="result-title">本轮得分：${corr} / ${total}</div>`;
+    html += `<ul style="padding:6px 0 0 1.3em;color:#bbdcff;">`;
+    currentQuestions.forEach((q,idx)=>{
+        let ua = userAnswers[idx];
+        html += `<li style="margin-bottom:5px;">
+            ${ua.correct?"<span style='color:#3ec95f;font-weight:bold'>✔</span>":"<span style='color:#e84444;font-weight:bold'>✖</span>"} 
+            <b>${idx+1}.</b> <span style="color:${ua.correct?'#3ec95f':'#fd547a'}">你的答案：${q.options[ua.userAns]||'-'}</span>，<span>正确答案：${q.options[q.answer]}</span>
+            <br><span style="color:#c8fffa88">${q.explanation||''}</span>
+            </li>`;
+    });
+    html+="</ul></div>";
+    $section.innerHTML = html;
+    lockReplay(true);
+}
+function lockReplay(show){
+    $btnReplay.onclick=()=>{
+        userAnswers=[];
+        isShowingResult=false;
+        startGame();
+    }
+    $btnReplay.style.display=show?'':'none';
+    $btnExport.onclick=()=>{
+        exportAnswersToFile();
+    }
+    $btnExport.style.display=show?'':'none';
+}
+function exportAnswersToFile(){
+    let point = currentBank[currentSelected];
+    let now = new Date();
+    let txt = `物理课堂小游戏 答题记录
+知识点：${point.name}
+日期：${now.toLocaleString()}
+------------------------------------------
+`;
+    currentQuestions.forEach((q,idx)=>{
+        txt+=`题${idx+1}：${q.q.replace(/<[^>]+>/g,'')}\n`;
+        let ua = userAnswers[idx];
+        let uaTxt = typeof ua.userAns==='number'? q.options[ua.userAns] : ua.userAns;
+        txt+=`你的答案：${uaTxt}\n`;
+        txt+=`正确答案：${q.options[q.answer]}\n`;
+        txt+=ua.correct?'答对\n':'答错\n';
+        txt+=`简要解析：${q.explanation||''}\n------------------------------------------\n`;
+    });
+    let blob = new Blob([txt],{type:"text/plain"});
+    let a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${point.name}_物理小游戏答题记录.txt`;
+    a.click();
+}
+function showCustomModal(){
+    $modalBg.style.display = 'flex';
+    renderCustomUI();
+}
+function closeModal(){
+    $modalBg.style.display = 'none';
+}
+function renderCustomUI(){
+    let html = `<h3>自定义题库</h3>
+    <ul style="padding-left:1em;">`;
+    currentBank.forEach((p,i)=>{
+        html+=`<li style="margin-bottom:6px;">
+        <b style="color:#2454a6">${i+1}. ${p.name}</b> 
+        <button onclick="editPoint(${i})">编辑</button>
+        <button onclick="delPoint(${i})">删除</button>
+        </li>`;
+    });
+    html+=`</ul>
+    <button onclick="addPoint()">+ 添加知识点</button>
+    <hr>
+    <div class="bbar">
+        <button onclick="saveCustom()" style="background:#36c24d;">保存并关闭</button>
+        <button onclick="closeModal();">取消</button>
+    </div>`;
+    $customContent.innerHTML = html;
+}
+function saveCustom(){
+    saveBank(currentBank);
+    closeModal();
+    init();
+}
+window.editPoint = function(idx){
+    let p = currentBank[idx];
+    let html = `<h3>编辑知识点</h3>
+    <form id="ptForm">
+    名称：<input name="pname" value="${p.name}" required><br>
+    类型：<select name="ptype" disabled>
+        <option value="select" selected>选择题</option>
+    </select><br>
+    <button type="submit">保存</button>
+    <button type="button" onclick="renderCustomUI()">返回</button>
+    </form>
+    <hr>
+    <fieldset>
+    <legend>题目（最多5题）</legend>
+    <ul>`;
+    for(let i=0;i<p.questions.length;i++){
+        html+=`<li>
+        <b>题${i+1}：</b>
+        <button onclick="editQ(${idx},${i})">编辑</button>
+        <button onclick="deleteQ(${idx},${i})">删除</button>
+        </li>`;
+    }
+    html+=`</ul>`;
+    if(p.questions.length<5)
+        html+='<button onclick="addQ('+idx+')">+新增题目</button>';
+    html+='</fieldset>';
+    html+='<div class="bbar"><button onclick="renderCustomUI()">返回列表</button></div>';
+    $customContent.innerHTML = html;
+    document.getElementById('ptForm').onsubmit=function(ev){
+        ev.preventDefault();
+        p.name = this.pname.value.trim();
+        currentBank[idx]=p;
+        saveBank(currentBank);
+        renderCustomUI();
+    }
+};
+window.addPoint = function(){
+    currentBank.push({name:"新知识点",type:"select",questions:[]});
+    editPoint(currentBank.length-1);
+};
+window.delPoint = function(idx){
+    if(!confirm('确定删除该知识点吗？'))return;
+    currentBank.splice(idx,1);
+    renderCustomUI();
+};
+window.addQ = function(idx){
+    currentBank[idx].questions.push({q:"题干",options:["A","B"],answer:0,explanation:""});
+    editQ(idx, currentBank[idx].questions.length-1);
+}
+window.deleteQ = function(idx, qidx){
+    if(!confirm('确定删除该题目吗？'))return;
+    currentBank[idx].questions.splice(qidx,1);
+    editPoint(idx);
+}
+window.editQ = function(idx, qidx){
+    let p = currentBank[idx], q = p.questions[qidx];
+    let html = `<h3>编辑题目</h3>
+    <form id="qForm">
+    <b>题干：</b><br>
+    <textarea name="q" rows="2" style="width:95%;">${q.q}</textarea><br>
+    <b>答案解析：</b><br>
+    <textarea name="exp" rows="2" style="width:95%;">${q.explanation||''}</textarea><br>
+    <b>选项（点击选择正确答案）：</b><br>
+    <ul id="opts" style="padding-left:0;">`;
+    for(let i=0;i<q.options.length;i++){
+        html+=`<li style="display:flex;align-items:center;">
+        <input type="radio" name="ans" value="${i}" ${i===q.answer?'checked':''}>
+        <input type="text" name="opt${i}" value="${q.options[i]||''}" style="width:64%;">
+        <button type="button" onclick="removeOpt(${i})">删</button>
+        </li>`;
+    }
+    html+='</ul>';
+    if(q.options.length<8) html+='<button type="button" onclick="addOpt()">+添加选项</button>';
+    html+=`<hr>
+    <div class="bbar">
+        <button type="submit" style="background:#36c24d;">保存</button>
+        <button type="button" onclick="editPoint(${idx})">返回</button>
+    </div>
+    </form>`;
+    $customContent.innerHTML = html;
+    document.getElementById('qForm').onsubmit=function(ev){
+        ev.preventDefault();
+        q.q = this.q.value.trim();
+        q.explanation = this.exp.value.trim();
+        q.options = [];
+        let radios = this.querySelectorAll('input[name^=opt]');
+        radios.forEach(r=>{q.options.push(r.value);});
+        q.answer = Number(this.ans.value);
+        currentBank[idx].questions[qidx]=q;
+        saveBank(currentBank);
+        editPoint(idx);
+    }
+    window.addOpt = function(){
+        let ul=document.getElementById('opts');
+        let n=ul.children.length;
+        let li=document.createElement('li');
+        li.style="display:flex;align-items:center;";
+        li.innerHTML=`<input type="radio" name="ans" value="${n}" >
+            <input type="text" name="opt${n}" value="" style="width:64%;">
+            <button type="button" onclick="removeOpt(${n})">删</button>`;
+        ul.appendChild(li);
+    }
+    window.removeOpt = function(oi){
+        let ul=document.getElementById('opts');
+        if(ul.children[oi]) ul.children[oi].remove();
+    }
+};
+init();
+</script>
+</body>
+</html>
